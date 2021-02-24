@@ -5,7 +5,7 @@ namespace OopsAllLalafells {
     [StructLayout((LayoutKind.Explicit))]
     public struct CharaCustomizeData {
         [FieldOffset((int) CustomizeIndex.Race)] public Race Race;
-        [FieldOffset((int) CustomizeIndex.Gender)] public byte Gender;
+        [FieldOffset((int) CustomizeIndex.Gender)] public Gender Gender;
         [FieldOffset((int) CustomizeIndex.ModelType)] public byte ModelType;
         [FieldOffset((int) CustomizeIndex.Height)] public byte Height;
         [FieldOffset((int) CustomizeIndex.Tribe)] public byte Tribe;

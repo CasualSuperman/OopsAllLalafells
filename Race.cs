@@ -21,7 +21,7 @@ namespace OopsAllLalafells {
     }
 
     public class RaceMappings {
-	    public static readonly Dictionary<Race, int> RaceHairs = new Dictionary<Race, int> {
+	    public static readonly Dictionary<Race, byte> RaceHairs = new Dictionary<Race, byte> {
 		    { Race.HYUR, 13 },
 		    { Race.ELEZEN, 12 },
 		    { Race.LALAFELL, 13 },

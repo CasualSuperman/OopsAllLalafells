@@ -9,12 +9,11 @@ using Dalamud.Game.ClientState.Structs;
 using Dalamud.Plugin;
 using Dalamud.Hooking;
 using OopsAllLalafells.Attributes;
+using OopsAllLalafells.customizations;
 
 namespace OopsAllLalafells {
     public class Plugin : IDalamudPlugin {
         private const uint CHARA_WINDOW_ACTOR_ID = 0xE0000000;
-
-        private const int LALAFELL_RACE_ID = 3;
 
         private const int OFFSET_RENDER_TOGGLE = 0x104;
 
@@ -57,7 +56,7 @@ namespace OopsAllLalafells {
         private bool lastWasModified;
 
         private Race lastPlayerRace;
-        private byte lastPlayerGender;
+        private Gender lastPlayerGender;
 
         // This sucks, but here we are
         static Plugin() {
@@ -126,18 +125,17 @@ namespace OopsAllLalafells {
                 lastWasModified = false;
                 var actor = Marshal.PtrToStructure<Actor>(lastActor);
 
-                if ((uint)actor.ActorId != CHARA_WINDOW_ACTOR_ID
-                    && this.pluginInterface.ClientState.LocalPlayer != null) {
+                if ((uint)actor.ActorId != CHARA_WINDOW_ACTOR_ID && this.pluginInterface.ClientState.LocalPlayer != null) {
                     bool isSelf = actor.ActorId == this.pluginInterface.ClientState.LocalPlayer.ActorId;
-                    Race targetRace = isSelf ? this.config.SelfRace : this.config.OtherRace;
-                    this.LogRace(customizeDataPtr, targetRace);
+                    //Race targetRace = isSelf ? this.config.SelfRace : this.config.OtherRace;
+                    //this.LogRace(customizeDataPtr, targetRace);
                     if (isSelf) {
                         if (this.config.SelfChange) {
-                            this.ChangeRace(customizeDataPtr, this.config.SelfRace);
+                            this.ChangeRace(customizeDataPtr, this.ui.selfCustomizations);
                         }
                     } else {
                         if (this.config.OtherChange) {
-                            this.ChangeRace(customizeDataPtr, this.config.OtherRace);
+                            this.ChangeRace(customizeDataPtr, this.ui.otherCustomizations);
                         }
                     }
                 }
@@ -155,9 +153,63 @@ namespace OopsAllLalafells {
 //#endif
         }
 
-        private void ChangeRace(IntPtr customizeDataPtr, Race targetRace) {
+        private void ChangeRace(IntPtr customizeDataPtr, List<Customization> customizations) {
             var customData = Marshal.PtrToStructure<CharaCustomizeData>(customizeDataPtr);
 
+            bool modified = false;
+            Race race = customData.Race;
+            Gender gender = customData.Gender;
+            foreach (Customization cust in customizations) {
+	            CustomizeIndex index = cust.GetCustomization();
+	            byte replacement = cust.GetValue();
+	            PluginLog.Log($"Setting {index} to {replacement}");
+	            if (index == CustomizeIndex.Race) {
+		            race = (Race) replacement;
+		            if (race != customData.Race) {
+			            lastPlayerRace = race;
+			            Gender newGender = race switch {
+				            Race.HROTHGAR => Gender.Male, // Force male for Hrothgar
+				            Race.VIERA => Gender.Female, // Force female for Viera
+				            _ => customData.Gender
+			            };
+			            if (newGender != gender) {
+				            gender = newGender;
+				            lastPlayerGender = gender;
+				            PluginLog.Log($"Forcing {CustomizeIndex.Gender} to {gender}");
+				            Marshal.WriteByte(customData, (int) CustomizeIndex.Gender, (byte) gender);
+				            modified = true;
+			            }
+
+			            customData.Race = race;
+			            customData.Tribe = (byte)((byte) customData.Race * 2 - customData.Tribe % 2);
+			            modified = true;
+		            }
+	            } else if (index == CustomizeIndex.Gender) {
+		            gender = (Gender) replacement;
+		            if (customData.Gender != gender) {
+			            customData.Gender = gender;
+						modified = true;
+		            }
+	            } else {
+		            int offset = (int) index;
+		            byte starting = Marshal.ReadByte(customData, offset);
+		            if (starting != replacement) {
+			            Marshal.WriteByte(customData, offset, replacement);
+			            modified = true;
+		            }
+	            }
+            }
+
+            //customData.Gender = gender;
+            
+
+            if (modified) {
+	            lastWasModified = true;
+	            lastPlayerGender = gender;
+	            lastPlayerRace = race;
+	            Marshal.StructureToPtr(customData, customizeDataPtr, true);
+            }
+            /*
             if (customData.Race != targetRace) {
                 // Modify the race/tribe accordingly
                 customData.Race = targetRace;
@@ -199,6 +251,7 @@ namespace OopsAllLalafells {
                 }
 #endif
             }
+            */
         }
 
         private IntPtr FlagSlotUpdateDetour(IntPtr actorPtr, uint slot, IntPtr equipDataPtr) {
@@ -284,8 +337,7 @@ namespace OopsAllLalafells {
             for (var i = 0; i < this.pluginInterface.ClientState.Actors.Length; i++) {
                 var actor = this.pluginInterface.ClientState.Actors[i];
 
-                if (actor != null
-                    && actor.ObjectKind == ObjectKind.Player) {
+                if (actor != null && actor.ObjectKind == ObjectKind.Player) {
                     RerenderActor(actor);
                 }
             }
@@ -304,11 +356,11 @@ namespace OopsAllLalafells {
             }
         }
 
-        private EquipData MapRacialEquipModels(Race race, int gender, EquipData eq) {
+        private EquipData MapRacialEquipModels(Race race, Gender gender, EquipData eq) {
             if (Array.IndexOf(RACE_STARTER_GEAR_IDS, eq.model) > -1) {
                 PluginLog.Log($"Modified {eq.model}, {eq.variant}");
                 PluginLog.Log($"Race {race}, index {(byte) (race - 1)}, gender {gender}");
-                eq.model = RACE_STARTER_GEAR_ID_MAP[(byte) race - 1, gender];
+                eq.model = RACE_STARTER_GEAR_ID_MAP[(byte) race - 1, (byte) gender];
                 eq.variant = 1;
                 PluginLog.Log($"New {eq.model}, {eq.variant}");
             }
