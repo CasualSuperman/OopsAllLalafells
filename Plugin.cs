@@ -132,10 +132,12 @@ namespace OopsAllLalafells {
                     if (isSelf) {
                         if (this.config.SelfChange) {
                             this.ChangeRace(customizeDataPtr, this.ui.selfCustomizations);
+                            PluginLog.Log($"Updating self with {this.ui.selfCustomizations}");
                         }
                     } else {
                         if (this.config.OtherChange) {
                             this.ChangeRace(customizeDataPtr, this.ui.otherCustomizations);
+                            PluginLog.Log($"Updating others with {this.ui.otherCustomizations}");
                         }
                     }
                 }
@@ -163,6 +165,14 @@ namespace OopsAllLalafells {
 	            CustomizeIndex index = cust.GetCustomization();
 	            byte replacement = cust.GetValue();
 	            PluginLog.Log($"Setting {index} to {replacement}");
+	            
+	            int offset = (int) index;
+	            byte starting = Marshal.ReadByte(customizeDataPtr, offset);
+	            if (starting != replacement) {
+		            Marshal.WriteByte(customizeDataPtr, offset, replacement);
+		            modified = true;
+	            }
+
 	            if (index == CustomizeIndex.Race) {
 		            race = (Race) replacement;
 		            if (race != customData.Race) {
@@ -176,26 +186,22 @@ namespace OopsAllLalafells {
 				            gender = newGender;
 				            lastPlayerGender = gender;
 				            PluginLog.Log($"Forcing {CustomizeIndex.Gender} to {gender}");
-				            Marshal.WriteByte(customData, (int) CustomizeIndex.Gender, (byte) gender);
+				            Marshal.WriteByte(customizeDataPtr, (int) CustomizeIndex.Gender, (byte) gender);
 				            modified = true;
 			            }
 
 			            customData.Race = race;
 			            customData.Tribe = (byte)((byte) customData.Race * 2 - customData.Tribe % 2);
+			            Marshal.WriteByte(customizeDataPtr, (int) CustomizeIndex.Race, (byte) race);
+			            Marshal.WriteByte(customizeDataPtr, (int) CustomizeIndex.Tribe, (byte)  (byte)((byte) customData.Race * 2 - customData.Tribe % 2));
 			            modified = true;
 		            }
 	            } else if (index == CustomizeIndex.Gender) {
 		            gender = (Gender) replacement;
 		            if (customData.Gender != gender) {
-			            customData.Gender = gender;
+			            //customData.Gender = gender;
+			            Marshal.WriteByte(customizeDataPtr, (int) CustomizeIndex.Gender, replacement);
 						modified = true;
-		            }
-	            } else {
-		            int offset = (int) index;
-		            byte starting = Marshal.ReadByte(customData, offset);
-		            if (starting != replacement) {
-			            Marshal.WriteByte(customData, offset, replacement);
-			            modified = true;
 		            }
 	            }
             }
@@ -207,7 +213,6 @@ namespace OopsAllLalafells {
 	            lastWasModified = true;
 	            lastPlayerGender = gender;
 	            lastPlayerRace = race;
-	            Marshal.StructureToPtr(customData, customizeDataPtr, true);
             }
             /*
             if (customData.Race != targetRace) {

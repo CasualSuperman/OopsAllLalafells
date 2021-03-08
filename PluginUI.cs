@@ -28,8 +28,8 @@ namespace OopsAllLalafells {
         
         private Customization otherAdding = null;
         private Customization selfAdding = null;
-        private Customization otherRemoving = null;
-        private Customization selfRemoving = null;
+        private int otherRemoving = -1;
+        private int selfRemoving = -1;
         
         public PluginUI(Plugin plugin, DalamudPluginInterface pluginInterface) {
             this.plugin = plugin;
@@ -49,7 +49,7 @@ namespace OopsAllLalafells {
 
             bool changed = false;
             changed |= ShowChangeItems("Others", otherCustomizations, ref otherAdding, ref otherRemoving, ref uiOtherChange);
-            ImGui.Spacing();
+            ImGui.Separator();
             changed |= ShowChangeItems("Self", selfCustomizations, ref selfAdding, ref selfRemoving, ref uiSelfChange);
 
             ImGui.End();
@@ -64,48 +64,39 @@ namespace OopsAllLalafells {
             }
         }
 
-        private static bool ShowChangeItems(string targetType, List<Customization> customizations, ref Customization adding, ref Customization removing, ref bool change) {
+        private static bool ShowChangeItems(string targetType, List<Customization> customizations, ref Customization adding, ref int removing, ref bool change) {
 	        bool changed = false;
 	        ImGui.Checkbox("Change " + targetType.ToLower(), ref change);
 	        if (change) {
 		        if (ImGui.TreeNode(targetType)) {
-			        if (removing != null) {
-				        customizations.Remove(removing);
-				        removing = null;
-				        changed = true;
-			        }
 			        Race race = Race.LALAFELL;
-			        foreach (Customization cust in customizations) {
+			        for (var index = 0; index < customizations.Count; index++) {
+				        ImGui.PushID(targetType + "-cust-" + index);
+				        Customization cust = customizations[index];
 				        if (cust.GetCustomization() == CustomizeIndex.Race) {
 					        race = (Race) cust.GetValue();
 				        }
-				        ImGui.Separator();
+
 				        if (cust.MenuItem()) {
 					        changed = true;
 				        }
 
 				        ImGui.SameLine();
+				        ImGui.PopID();
+				        ImGui.PushID(targetType + "-cust-remove-" + index);
 				        if (ImGui.Button("-")) {
-					        removing = cust;
+					        removing = index;
 				        }
-			        }
-			        if (adding != null) {
-				        ImGui.Separator();
-				        adding.MenuItem();
-
-				        ImGui.SameLine();
-				        if (ImGui.Button("+")) {
-					        customizations.Add(adding);
-					        adding = null;
-					        changed = true;
-				        }
+				        ImGui.PopID();
 			        }
 
 			        if (CUSTOMIZATIONS.Length > customizations.Count) {
 				        ImGui.Separator();
-				        if (ImGui.BeginCombo("Add Customization", "")) {
+				        string label = adding != null ? "" : "Add Customization";
+				        if (ImGui.BeginCombo(label, "")) {
 					        foreach (CustomizeIndex ndx in CUSTOMIZATIONS) {
 						        if (!contains(customizations, ndx)) {
+							        ImGui.PushID(targetType + "-adding-" + ndx);
 							        if (ImGui.Selectable(ndx.ToString(), adding != null && adding.GetCustomization() == ndx)) {
 								        adding = Customizers.GetFactory(ndx).New(race);
 							        }
@@ -113,13 +104,32 @@ namespace OopsAllLalafells {
 							        if (adding != null && adding.GetCustomization() == ndx) {
 								        ImGui.SetItemDefaultFocus();
 							        }
+							        ImGui.PopID();
 						        }
 					        }
 
 					        ImGui.EndCombo();
 				        }
+
+				        if (adding != null) {
+					        ImGui.SameLine();
+					        adding.MenuItem();
+
+					        ImGui.SameLine();
+					        if (ImGui.Button("+")) {
+						        customizations.Add(adding);
+						        adding = null;
+						        changed = true;
+					        }
+				        }
 			        }
 		        }
+	        }
+	        
+	        if (removing >= 0) {
+		        customizations.RemoveAt(removing);
+		        removing = -1;
+		        changed = true;
 	        }
 
 	        return changed;
